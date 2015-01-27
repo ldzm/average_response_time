@@ -146,6 +146,12 @@ public class AverageResponseTime extends Configured implements Tool {
 				successCount += Long.parseLong(fields[4]);
 				failureCount += Long.parseLong(fields[5]);
 			}
+			if (0 == successCount) {
+				successCount = -1L;
+			}
+			if (0 == failureCount) {
+				failureCount = -1L;
+			}
 			String content = sumSuccessElapse + SEPARATOR + sumSuccessElapse / successCount + SEPARATOR
 					+ sumFailureElapse + SEPARATOR + sumFailureElapse / failureCount + SEPARATOR + sumSuccessByte
 					+ SEPARATOR + sumSuccessByte / successCount + SEPARATOR + sumFailureByte + SEPARATOR
