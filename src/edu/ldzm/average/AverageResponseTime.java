@@ -56,7 +56,8 @@ public class AverageResponseTime extends Configured implements Tool {
 	private static int REQUEST_SUCCESSFUL_INDEX = 7;
 	private static int REQUEST_BYTE_INDEX = 8;
 	private static int INTERVAL_TIME = 120;
-	
+	private static int NAME_LIST_LENGTH = 0;
+
 	private static final String SEPARATOR = ",";
 	private static final int OTHER_ARGS_SIZE = 4;
 
@@ -64,77 +65,97 @@ public class AverageResponseTime extends Configured implements Tool {
 	 * Counts the words in each line. For each line of input, break the line
 	 * into words and emit them as (<b>word</b>, <b>1</b>).
 	 */
-	public static class MapClass extends MapReduceBase implements
-			Mapper<LongWritable, Text, Text, Text> {
+	public static class MapClass extends MapReduceBase implements Mapper<LongWritable, Text, Text, Text> {
 
+		/**
+		 * output key: time,label content: elapse,byte,true/false
+		 */
 		@Override
-		public void map(LongWritable key, Text value,
-				OutputCollector<Text, Text> output, Reporter reporter)
+		public void map(LongWritable key, Text value, OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
-			String line = value.toString().trim();
+			String[] fields = value.toString().trim().split(SEPARATOR);
+			if (fields.length == NAME_LIST_LENGTH) {
 
-			if (line.length() > 5) {
-				String [] fields = line.split(SEPARATOR);
-				String label = Long.parseLong(fields[REQUEST_TIME_INDEX]) / (INTERVAL_TIME * 1000)
-						+ SEPARATOR + fields[REQUEST_LABEL_INDEX] + SEPARATOR
+				String label = Long.parseLong(fields[REQUEST_TIME_INDEX]) / (INTERVAL_TIME * 1000) + SEPARATOR
+						+ fields[REQUEST_LABEL_INDEX];
+
+				String content = fields[REQUEST_ELAPSE_TIME_INDEX] + SEPARATOR + fields[REQUEST_BYTE_INDEX] + SEPARATOR
 						+ fields[REQUEST_SUCCESSFUL_INDEX];
-				String content = fields[REQUEST_ELAPSE_TIME_INDEX] + SEPARATOR 
-				        + fields[REQUEST_BYTE_INDEX];
 				output.collect(new Text(label), new Text(content));
 			}
 		}
 	}
 
 	/**
-	 * A reducer class that just emits the sum of the input values.
+	 * A reducer class that just emits the sum of the input values. output key:
+	 * time,label content:
+	 * sumSuccessElapse,sumFailureElapse,sumSuccessByte,sumFailureByte
+	 * ,successCount,failureCount;
 	 */
-	public static class Combine extends MapReduceBase implements
-			Reducer<Text, Text, Text, Text> {
+	public static class Combine extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
 
-		public void reduce(Text key, Iterator<Text> values,
-				OutputCollector<Text, Text> output, Reporter reporter)
+		public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
-			long sumElapse = 0L;
-			long sumByte = 0L;
-			long count = 0L;
+			long sumSuccessElapse = 0L;
+			long sumFailureElapse = 0L;
+			long sumSuccessByte = 0L;
+			long sumFailureByte = 0L;
+			long successCount = 0L;
+			long failureCount = 0L;
 			while (values.hasNext()) {
-				String [] fields = values.next().toString().split(SEPARATOR);
-				sumElapse += Long.parseLong(fields[0]);
-				sumByte += Long.parseLong(fields[1]);
-				count++;
+				String[] fields = values.next().toString().split(SEPARATOR);
+
+				if ("true".equals(fields[2])) {
+					sumSuccessElapse += Long.parseLong(fields[0]);
+					sumSuccessByte += Long.parseLong(fields[1]);
+					successCount++;
+				} else {
+					sumFailureElapse += Long.parseLong(fields[0]);
+					sumFailureByte += Long.parseLong(fields[1]);
+					failureCount++;
+				}
 			}
-			String content = sumElapse + SEPARATOR + sumByte + SEPARATOR + count;
+			String content = sumSuccessElapse + SEPARATOR + sumFailureElapse + SEPARATOR + sumSuccessByte + SEPARATOR
+					+ sumFailureByte + SEPARATOR + successCount + SEPARATOR + failureCount;
 			output.collect(key, new Text(content));
 		}
 	}
 
 	/**
-	 * A reducer class that just emits the sum of the input values.
+	 * A reducer class that just emits the sum of the input values. 
+	 * output: key:time,label
+	 * content: sumSuccessElapse,sumSuccessElapse/successCount,sumFailureElapse,sumFailureElapse/failureCount,sumSuccessByte,
+	 * sumSuccessByte/successCount,sumFailureByte,sumFailureByte/failureCount,successCount,failureCount;
 	 */
-	public static class Reduce extends MapReduceBase implements
-			Reducer<Text, Text, Text, Text> {
+	public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
 
-		public void reduce(Text key, Iterator<Text> values,
-				OutputCollector<Text, Text> output, Reporter reporter)
+		public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
-			long sumElapse = 0L;
-			long sumByte = 0L;
-			long count = 0L;
+			long sumSuccessElapse = 0L;
+			long sumFailureElapse = 0L;
+			long sumSuccessByte = 0L;
+			long sumFailureByte = 0L;
+			long successCount = 0L;
+			long failureCount = 0L;
 			while (values.hasNext()) {
 				String[] fields = values.next().toString().split(SEPARATOR);
-				sumElapse += Long.parseLong(fields[0]);
-				sumByte += Long.parseLong(fields[1]);
-				count += Long.parseLong(fields[2]);
+				sumSuccessElapse += Long.parseLong(fields[0]);
+				sumFailureElapse += Long.parseLong(fields[1]);
+				sumSuccessByte += Long.parseLong(fields[2]);
+				sumFailureByte += Long.parseLong(fields[3]);
+				successCount += Long.parseLong(fields[4]);
+				failureCount += Long.parseLong(fields[5]);
 			}
-			String content = sumElapse + SEPARATOR + count + SEPARATOR
-					+ sumElapse / count + SEPARATOR + sumByte / count;
+			String content = sumSuccessElapse + SEPARATOR + sumSuccessElapse / successCount + SEPARATOR
+					+ sumFailureElapse + SEPARATOR + sumFailureElapse / failureCount + SEPARATOR + sumSuccessByte
+					+ SEPARATOR + sumSuccessByte / successCount + SEPARATOR + sumFailureByte + SEPARATOR
+					+ sumFailureByte / failureCount + SEPARATOR + successCount + SEPARATOR + failureCount;
 			output.collect(key, new Text(content));
 		}
 	}
 
 	static int printUsage() {
-		System.out
-				.println("wordcount [-m <maps>] [-r <reduces>] <input> <output>");
+		System.out.println("wordcount [-m <maps>] [-r <reduces>] <input> <output>");
 		ToolRunner.printGenericCommandUsage(System.out);
 		return -1;
 	}
@@ -170,39 +191,38 @@ public class AverageResponseTime extends Configured implements Tool {
 					other_args.add(args[i]);
 				}
 			} catch (NumberFormatException except) {
-				System.out.println("ERROR: Integer expected instead of "
-						+ args[i]);
+				System.out.println("ERROR: Integer expected instead of " + args[i]);
 				return printUsage();
 			} catch (ArrayIndexOutOfBoundsException except) {
-				System.out.println("ERROR: Required parameter missing from "
-						+ args[i - 1]);
+				System.out.println("ERROR: Required parameter missing from " + args[i - 1]);
 				return printUsage();
 			}
 		}
 		// Make sure there are exactly 4 parameters left.
 		if (other_args.size() != OTHER_ARGS_SIZE) {
-			System.out.println("ERROR: Wrong number of parameters: "
-					+ other_args.size() + " instead of 2.");
+			System.out.println("ERROR: Wrong number of parameters: " + other_args.size() + " instead of 2.");
 			return printUsage();
 		}
-		
-		String [] fields = other_args.get(2).split(SEPARATOR);
-		for(int i = 0; i < fields.length; i++) {
+
+		String[] fields = other_args.get(2).split(SEPARATOR);
+		NAME_LIST_LENGTH = fields.length;
+
+		for (int i = 0; i < NAME_LIST_LENGTH; i++) {
 			if ("timeStamp".equals(fields[i])) {
 				REQUEST_TIME_INDEX = i;
-			} else if("elapsed".equals(fields[i])) {
+			} else if ("elapsed".equals(fields[i])) {
 				REQUEST_ELAPSE_TIME_INDEX = i;
-			} else if("label".equals(fields[i])) {
+			} else if ("label".equals(fields[i])) {
 				REQUEST_LABEL_INDEX = i;
-			} else if("success".equals(fields[i])) {
+			} else if ("success".equals(fields[i])) {
 				REQUEST_SUCCESSFUL_INDEX = i;
-			} else if("bytes".equals(fields[i])) {
+			} else if ("bytes".equals(fields[i])) {
 				REQUEST_BYTE_INDEX = i;
 			}
 		}
-		
+
 		INTERVAL_TIME = Integer.parseInt(other_args.get(3));
-		
+
 		FileInputFormat.setInputPaths(conf, other_args.get(0));
 		FileOutputFormat.setOutputPath(conf, new Path(other_args.get(1)));
 
@@ -211,8 +231,7 @@ public class AverageResponseTime extends Configured implements Tool {
 	}
 
 	public static void main(String[] args) throws Exception {
-		int res = ToolRunner.run(new Configuration(), new AverageResponseTime(),
-				args);
+		int res = ToolRunner.run(new Configuration(), new AverageResponseTime(), args);
 		System.exit(res);
 	}
 
