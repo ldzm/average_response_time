@@ -50,16 +50,7 @@ import org.apache.hadoop.util.ToolRunner;
  */
 public class AverageResponseTime extends Configured implements Tool {
 
-	private static int REQUEST_TIME_INDEX = 0;
-	private static int REQUEST_ELAPSE_TIME_INDEX = 1;
-	private static int REQUEST_LABEL_INDEX = 2;
-	private static int REQUEST_SUCCESSFUL_INDEX = 7;
-	private static int REQUEST_BYTE_INDEX = 8;
-	private static int INTERVAL_TIME = 120;
-	private static int NAME_LIST_LENGTH = 0;
-
 	private static final String SEPARATOR = ",";
-	private static final int OTHER_ARGS_SIZE = 4;
 
 	/**
 	 * Counts the words in each line. For each line of input, break the line
@@ -67,12 +58,26 @@ public class AverageResponseTime extends Configured implements Tool {
 	 */
 	public static class MapClass extends MapReduceBase implements Mapper<LongWritable, Text, Text, Text> {
 
+		private Configuration conf;
+		
+		@Override
+		public void configure(JobConf job) {
+			conf = job;
+		}
 		/**
 		 * output key: time,label content: elapse,byte,true/false
 		 */
 		@Override
 		public void map(LongWritable key, Text value, OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
+			int REQUEST_TIME_INDEX = conf.getInt("REQUEST_TIME_INDEX", -1);
+			int REQUEST_ELAPSE_TIME_INDEX = conf.getInt("REQUEST_ELAPSE_TIME_INDEX", -1);
+			int REQUEST_LABEL_INDEX = conf.getInt("REQUEST_LABEL_INDEX", -1);
+			int REQUEST_SUCCESSFUL_INDEX = conf.getInt("REQUEST_SUCCESSFUL_INDEX", -1);
+			int REQUEST_BYTE_INDEX = conf.getInt("REQUEST_BYTE_INDEX", -1);
+			int INTERVAL_TIME = conf.getInt("INTERVAL_TIME", -1);
+			int NAME_LIST_LENGTH = conf.getInt("NAME_LIST_LENGTH", -1);
+			
 			String[] fields = value.toString().trim().split(SEPARATOR);
 			if (fields.length == NAME_LIST_LENGTH) {
 
@@ -129,8 +134,17 @@ public class AverageResponseTime extends Configured implements Tool {
 	 */
 	public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
 
+        private Configuration conf; 
+        
+        @Override
+        public void configure(JobConf job) {
+        	conf = job;
+        }
 		public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
+			
+			int INTERVAL_TIME = conf.getInt("INTERVAL_TIME", -1);
+			
 			long sumSuccessElapse = 0L;
 			long sumFailureElapse = 0L;
 			long sumSuccessByte = 0L;
@@ -154,14 +168,14 @@ public class AverageResponseTime extends Configured implements Tool {
 			}
 			String content = sumSuccessElapse + SEPARATOR + sumSuccessElapse / successCount + SEPARATOR
 					+ sumFailureElapse + SEPARATOR + sumFailureElapse / failureCount + SEPARATOR + sumSuccessByte
-					+ SEPARATOR + sumSuccessByte / successCount + SEPARATOR + sumFailureByte + SEPARATOR
-					+ sumFailureByte / failureCount + SEPARATOR + successCount + SEPARATOR + failureCount;
+					+ SEPARATOR + sumSuccessByte / INTERVAL_TIME + SEPARATOR + sumFailureByte + SEPARATOR
+					+ sumFailureByte / INTERVAL_TIME + SEPARATOR + successCount + SEPARATOR + failureCount;
 			output.collect(key, new Text(content));
 		}
 	}
 
 	static int printUsage() {
-		System.out.println("wordcount [-m <maps>] [-r <reduces>] <input> <output>");
+		System.out.println("average_response_time [-m <maps>] [-r <reduces>] <input> <output>");
 		ToolRunner.printGenericCommandUsage(System.out);
 		return -1;
 	}
@@ -193,6 +207,24 @@ public class AverageResponseTime extends Configured implements Tool {
 					conf.setNumMapTasks(Integer.parseInt(args[++i]));
 				} else if ("-r".equals(args[i])) {
 					conf.setNumReduceTasks(Integer.parseInt(args[++i]));
+				} else if ("-l".equals(args[i])) {
+					String[] fields = args[++i].split(SEPARATOR);
+					conf.setInt("NAME_LIST_LENGTH", fields.length);
+					for (int j = 0; j < fields.length; j++) {
+						if ("timeStamp".equals(fields[j])) {
+							conf.setInt("REQUEST_TIME_INDEX", j);
+						} else if ("elapsed".equals(fields[j])) {
+							conf.setInt("REQUEST_ELAPSE_TIME_INDEX", j);
+						} else if ("label".equals(fields[j])) {
+							conf.setInt("REQUEST_LABEL_INDEX", j);
+						} else if ("success".equals(fields[j])) {
+							conf.setInt("REQUEST_SUCCESSFUL_INDEX", j);
+						} else if ("bytes".equals(fields[j])) {
+							conf.setInt("REQUEST_BYTE_INDEX", j);
+						}
+					}
+				} else if ("-i".equals(args[i])) {
+					conf.setInt("INTERVAL_TIME", Integer.parseInt(args[++i]));
 				} else {
 					other_args.add(args[i]);
 				}
@@ -204,30 +236,11 @@ public class AverageResponseTime extends Configured implements Tool {
 				return printUsage();
 			}
 		}
-		// Make sure there are exactly 4 parameters left.
-		if (other_args.size() != OTHER_ARGS_SIZE) {
+		// Make sure there are exactly 2 parameters left.
+		if (other_args.size() != 2) {
 			System.out.println("ERROR: Wrong number of parameters: " + other_args.size() + " instead of 2.");
 			return printUsage();
 		}
-
-		String[] fields = other_args.get(2).split(SEPARATOR);
-		NAME_LIST_LENGTH = fields.length;
-
-		for (int i = 0; i < NAME_LIST_LENGTH; i++) {
-			if ("timeStamp".equals(fields[i])) {
-				REQUEST_TIME_INDEX = i;
-			} else if ("elapsed".equals(fields[i])) {
-				REQUEST_ELAPSE_TIME_INDEX = i;
-			} else if ("label".equals(fields[i])) {
-				REQUEST_LABEL_INDEX = i;
-			} else if ("success".equals(fields[i])) {
-				REQUEST_SUCCESSFUL_INDEX = i;
-			} else if ("bytes".equals(fields[i])) {
-				REQUEST_BYTE_INDEX = i;
-			}
-		}
-
-		INTERVAL_TIME = Integer.parseInt(other_args.get(3));
 
 		FileInputFormat.setInputPaths(conf, other_args.get(0));
 		FileOutputFormat.setOutputPath(conf, new Path(other_args.get(1)));
