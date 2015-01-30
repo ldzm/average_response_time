@@ -19,6 +19,7 @@
 package edu.ldzm.average;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -166,10 +167,11 @@ public class AverageResponseTime extends Configured implements Tool {
 			if (0 == failureCount) {
 				failureCount = -1L;
 			}
-			String content = sumSuccessElapse + SEPARATOR + sumSuccessElapse / successCount + SEPARATOR
-					+ sumFailureElapse + SEPARATOR + sumFailureElapse / failureCount + SEPARATOR + sumSuccessByte
-					+ SEPARATOR + sumSuccessByte / INTERVAL_TIME + SEPARATOR + sumFailureByte + SEPARATOR
-					+ sumFailureByte / INTERVAL_TIME + SEPARATOR + successCount + SEPARATOR + failureCount;
+			DecimalFormat df = new DecimalFormat("##0.000");
+			String content = sumSuccessElapse + SEPARATOR + df.format(sumSuccessElapse * 1.0 / successCount) + SEPARATOR
+					+ sumFailureElapse + SEPARATOR + df.format(sumFailureElapse * 1.0 / failureCount) + SEPARATOR + sumSuccessByte
+					+ SEPARATOR + df.format(sumSuccessByte * 1.0 / (INTERVAL_TIME * 1000)) + SEPARATOR + sumFailureByte + SEPARATOR
+					+ df.format(sumFailureByte * 1.0 / (INTERVAL_TIME * 1000)) + SEPARATOR + successCount + SEPARATOR + failureCount;
 			output.collect(key, new Text(content));
 		}
 	}
