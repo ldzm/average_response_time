@@ -177,7 +177,7 @@ public class AverageResponseTime extends Configured implements Tool {
 	}
 
 	static int printUsage() {
-		System.out.println("average_response_time [-m <maps>] [-r <reduces>] <input> <output>");
+		System.out.println("average_response_time [-m <maps>] [-r <reduces>] -l <namelist> -i <interval> <input> <output>");
 		ToolRunner.printGenericCommandUsage(System.out);
 		return -1;
 	}
@@ -202,6 +202,7 @@ public class AverageResponseTime extends Configured implements Tool {
 		conf.setCombinerClass(Combine.class);
 		conf.setReducerClass(Reduce.class);
 
+		int param = 0;
 		List<String> other_args = new ArrayList<String>();
 		for (int i = 0; i < args.length; ++i) {
 			try {
@@ -210,6 +211,7 @@ public class AverageResponseTime extends Configured implements Tool {
 				} else if ("-r".equals(args[i])) {
 					conf.setNumReduceTasks(Integer.parseInt(args[++i]));
 				} else if ("-l".equals(args[i])) {
+					param++;
 					String[] fields = args[++i].split(SEPARATOR);
 					conf.setInt("NAME_LIST_LENGTH", fields.length);
 					for (int j = 0; j < fields.length; j++) {
@@ -226,6 +228,7 @@ public class AverageResponseTime extends Configured implements Tool {
 						}
 					}
 				} else if ("-i".equals(args[i])) {
+					param++;
 					conf.setInt("INTERVAL_TIME", Integer.parseInt(args[++i]));
 				} else {
 					other_args.add(args[i]);
@@ -241,6 +244,11 @@ public class AverageResponseTime extends Configured implements Tool {
 		// Make sure there are exactly 2 parameters left.
 		if (other_args.size() != 2) {
 			System.out.println("ERROR: Wrong number of parameters: " + other_args.size() + " instead of 2.");
+			return printUsage();
+		}
+		
+		if (param != 2) {
+			System.out.println("请输入-l 和 -i的参数。");
 			return printUsage();
 		}
 
